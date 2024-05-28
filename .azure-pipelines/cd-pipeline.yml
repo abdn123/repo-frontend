@@ -1,0 +1,78 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  containerRegistry: 'myContainerRegistry.azurecr.io'
+  imageName: 'repo-frontend'
+
+stages:
+# Stage 1: Slow Ring
+- stage: SlowRing
+  displayName: 'Deploy to Slow Ring'
+  jobs:
+  - deployment: DeploySlowRing
+    displayName: 'Deploy to Slow Ring'
+    environment: 'slow-ring'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: UseNode@1
+            inputs:
+              version: '14.x'
+
+          - script: |
+              npm install
+              npm run build
+            displayName: 'Build Application'
+
+          - task: Docker@2
+            inputs:
+              containerRegistry: '$(containerRegistry)'
+              repository: '$(imageName)'
+              command: 'buildAndPush'
+              Dockerfile: '$(Build.SourcesDirectory)/Dockerfile'
+              tags: |
+                $(Build.BuildId)
+            displayName: 'Build and Push Docker Image'
+
+          - script: echo "Deploying to Slow Ring"
+            displayName: 'Deploy to Slow Ring'
+            # Here, you would include actual deployment commands, e.g., kubectl or Azure Web App deployment steps.
+
+# Stage 2: Fast Ring
+- stage: FastRing
+  displayName: 'Deploy to Fast Ring'
+  dependsOn: SlowRing
+  condition: succeeded()
+  jobs:
+  - deployment: DeployFastRing
+    displayName: 'Deploy to Fast Ring'
+    environment: 'fast-ring'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - script: echo "Deploying to Fast Ring"
+            displayName: 'Deploy to Fast Ring'
+            # Here, you would include actual deployment commands, e.g., kubectl or Azure Web App deployment steps.
+
+# Stage 3: Production
+- stage: Production
+  displayName: 'Deploy to Production'
+  dependsOn: FastRing
+  condition: succeeded()
+  jobs:
+  - deployment: DeployProduction
+    displayName: 'Deploy to Production'
+    environment: 'production'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - script: echo "Deploying to Production"
+            displayName: 'Deploy to Production'
+            # Here, you would include actual deployment commands, e.g., kubectl or Azure Web App deployment steps.
